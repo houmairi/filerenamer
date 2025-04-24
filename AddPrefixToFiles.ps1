@@ -1,5 +1,6 @@
 # Script to add a prefix to all filenames in a selected folder
 # Usage: Run the script, select a folder, provide a prefix when prompted
+# You can choose whether to include subfolders or just the main folder
 
 Add-Type -AssemblyName System.Windows.Forms
 
@@ -29,8 +30,18 @@ if ([string]::IsNullOrWhiteSpace($prefix)) {
     exit
 }
 
-# Get all files in the folder (not directories)
-$files = Get-ChildItem -Path $folderPath -File
+# Ask user if they want to include subfolders
+$includeSubfolders = Read-Host -Prompt "Include files in subfolders? (Y/N)"
+$includeSubfolders = ($includeSubfolders -eq "Y" -or $includeSubfolders -eq "y")
+
+# Get all files in the folder (and subfolders if selected)
+if ($includeSubfolders) {
+    $files = Get-ChildItem -Path $folderPath -File -Recurse
+    Write-Host "Including files in subfolders."
+} else {
+    $files = Get-ChildItem -Path $folderPath -File
+    Write-Host "Only including files in the main folder."
+}
 
 # Check if any files were found
 if ($files.Count -eq 0) {
@@ -42,7 +53,8 @@ if ($files.Count -eq 0) {
 Write-Host "`nThe following files will be renamed:"
 foreach ($file in $files) {
     $newName = "$prefix$($file.Name)"
-    Write-Host "$($file.Name) --> $newName"
+    $relativePath = $file.FullName.Substring($folderPath.Length + 1)
+    Write-Host "$relativePath --> $(Split-Path -Path $relativePath -Parent)\$newName"
 }
 
 # Confirm the operation
@@ -56,14 +68,17 @@ if ($confirmation -ne "Y" -and $confirmation -ne "y") {
 $renamedCount = 0
 foreach ($file in $files) {
     $newName = "$prefix$($file.Name)"
-    $newPath = Join-Path -Path $folderPath -ChildPath $newName
     
     try {
         Rename-Item -Path $file.FullName -NewName $newName -ErrorAction Stop
         $renamedCount++
     } catch {
-        Write-Host "Error renaming $($file.Name): $_" -ForegroundColor Red
+        Write-Host "Error renaming $($file.FullName): $_" -ForegroundColor Red
     }
 }
 
-Write-Host "`nRenamed $renamedCount out of $($files.Count) files successfully."
+if ($includeSubfolders) {
+    Write-Host "`nRenamed $renamedCount out of $($files.Count) files successfully (including files in subfolders)."
+} else {
+    Write-Host "`nRenamed $renamedCount out of $($files.Count) files successfully."
+}
